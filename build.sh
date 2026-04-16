@@ -17,7 +17,20 @@ echo "🚀 开始构建流程"
 echo "======================================"
 
 echo "[1/5] 📦 正在更新 Git Submodules..."
-git submodule update --init --recursive
+# 仅初始化尚未 init 的 submodule，不 checkout 到 detached HEAD
+git submodule update --init
+# 在每个 submodule 中切换到追踪分支并 pull 最新代码
+git submodule foreach '
+  BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed "s@^refs/remotes/origin/@@")
+  if [ -z "$BRANCH" ]; then
+    BRANCH=$(git remote show origin 2>/dev/null | grep "HEAD branch" | awk "{print \$NF}")
+  fi
+  if [ -n "$BRANCH" ]; then
+    git checkout "$BRANCH" && git pull origin "$BRANCH" || echo "Warning: could not pull $BRANCH in $name"
+  else
+    echo "Warning: could not determine default branch for $name, skipping pull"
+  fi
+'
 echo "✅ Submodules 更新完毕！"
 
 echo "--------------------------------------"
