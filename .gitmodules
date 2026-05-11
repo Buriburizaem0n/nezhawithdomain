@@ -1,9 +1,9 @@
 [submodule "admin-frontend-domain"]
 	path = admin-frontend-domain
-	url = https://github.com/Buriburizaem0n/admin-frontend-domain.git
+	url = ../admin-frontend-domain.git
 [submodule "nezha-dash-v1"]
 	path = nezha-dash-v1
-	url = https://github.com/Buriburizaem0n/nezha-dash-v1.git
+	url = ../nezha-dash-v1.git
 [submodule "nezha_domains"]
 	path = nezha_domains
-	url = https://github.com/Buriburizaem0n/nezha_domains.git
+	url = ../nezha_domains.git
