@@ -16,22 +16,19 @@ echo "======================================"
 echo "🚀 开始构建流程"
 echo "======================================"
 
-echo "[1/5] 📦 正在更新 Git Submodules..."
-# 仅初始化尚未 init 的 submodule，不 checkout 到 detached HEAD
-git submodule update --init
-# 在每个 submodule 中切换到追踪分支并 pull 最新代码
+echo "[1/5] 📦 正在检查/更新 Git Submodules..."
+git submodule update --init 2>/dev/null || true
 git submodule foreach '
-  BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed "s@^refs/remotes/origin/@@")
-  if [ -z "$BRANCH" ]; then
-    BRANCH=$(git remote show origin 2>/dev/null | grep "HEAD branch" | awk "{print \$NF}")
-  fi
-  if [ -n "$BRANCH" ]; then
-    git checkout "$BRANCH" && git pull origin "$BRANCH" || echo "Warning: could not pull $BRANCH in $name"
-  else
-    echo "Warning: could not determine default branch for $name, skipping pull"
+  BRANCH=$(git symbolic-ref --short -q HEAD 2>/dev/null || echo "")
+  if [ -z "$BRANCH" ] || [ "$BRANCH" = "HEAD" ]; then
+    DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | grep "HEAD branch" | awk "{print \$NF}")
+    if [ -n "$DEFAULT_BRANCH" ]; then
+      git checkout "$DEFAULT_BRANCH" 2>/dev/null || true
+    fi
   fi
 '
-echo "✅ Submodules 更新完毕！"
+echo "✅ Submodules 检查完毕！"
+
 
 echo "--------------------------------------"
 echo "[2/5] 🛠 正在编译管理员前端 (admin-frontend-domain)..."
@@ -41,8 +38,9 @@ if [ ! -f "package.json" ]; then
     exit 1
 fi
 npm install
-npm run build-ignore-error
+npm run build
 echo "✅ 管理员前端编译完毕！"
+
 
 echo "--------------------------------------"
 echo "[3/5] 🛠 正在编译用户前端 (nezha-dash-v1)..."
@@ -51,9 +49,15 @@ if [ ! -f "package.json" ]; then
     echo "❌ 错误: 未找到 $USER_DIR/package.json，请检查目前所在目录是否包含正确的用户前端仓库。"
     exit 1
 fi
-npm install
-npm run build
+if command -v pnpm &> /dev/null; then
+    pnpm install
+    pnpm run build
+else
+    npm install --legacy-peer-deps
+    npm run build
+fi
 echo "✅ 用户前端编译完毕！"
+
 
 echo "--------------------------------------"
 echo "[4/5] 📂 正在清理、拷贝前端构建产物到后端..."
