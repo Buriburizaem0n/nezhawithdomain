@@ -1,0 +1,67 @@
+---
+# ==============================================================================
+# 批量收敛 Nezha Agent 到纯遥测模式 (Ansible Playbook)
+# ==============================================================================
+- name: Hardening Nezha Agents to Telemetry-Only Mode
+  hosts: all
+  become: yes
+  gather_facts: no
+  vars:
+    possible_config_paths:
+      - /opt/nezha/agent/config.yml
+      - /etc/nezha/config.yml
+      - /etc/nezha-agent/config.yml
+      - /usr/local/nezha/agent/config.yml
+
+  tasks:
+    - name: Locate active nezha config.yml
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop: "{{ possible_config_paths }}"
+      register: found_configs
+
+    - name: Select first existing config path
+      ansible.builtin.set_fact:
+        target_config: "{{ (found_configs.results | selectattr('stat.exists') | map(attribute='item') | list).0 | default('') }}"
+
+    - name: Assert config file was found
+      ansible.builtin.assert:
+        that: target_config != ""
+        fail_msg: "Nezha agent configuration file not found on remote host."
+
+    - name: Backup existing config file
+      ansible.builtin.copy:
+        src: "{{ target_config }}"
+        dest: "{{ target_config }}.bak.{{ ansible_date_time.epoch | default('manual') }}"
+        remote_src: yes
+        mode: preserve
+
+    - name: Ensure disable_auto_update is set to true
+      ansible.builtin.lineinfile:
+        path: "{{ target_config }}"
+        regexp: '^[# ]*disable_auto_update:'
+        line: 'disable_auto_update: true'
+        state: present
+
+    - name: Ensure disable_command_execute is set to true
+      ansible.builtin.lineinfile:
+        path: "{{ target_config }}"
+        regexp: '^[# ]*disable_command_execute:'
+        line: 'disable_command_execute: true'
+        state: present
+
+    - name: Ensure disable_nat is set to true
+      ansible.builtin.lineinfile:
+        path: "{{ target_config }}"
+        regexp: '^[# ]*disable_nat:'
+        line: 'disable_nat: true'
+        state: present
+      notify: Restart Nezha Agent
+
+  handlers:
+    - name: Restart Nezha Agent
+      ansible.builtin.systemd:
+        name: nezha-agent
+        state: restarted
+        enabled: yes
+
