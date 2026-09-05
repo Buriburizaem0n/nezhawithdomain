@@ -37,8 +37,20 @@ if [ ! -f "package.json" ]; then
     echo "❌ 错误: 未找到 $ADMIN_DIR/package.json，请检查目前所在目录是否包含正确的管理员前端仓库。"
     exit 1
 fi
-npm install
-npm run build
+if command -v pnpm &> /dev/null; then
+    pnpm install
+    pnpm run build
+elif command -v npm &> /dev/null; then
+    npm install
+    npm run build
+elif command -v docker &> /dev/null; then
+    echo "Using docker to build admin-frontend-domain..."
+    docker run --rm -v "$ROOT_DIR":/workspace -w /workspace/admin-frontend-domain node:22-alpine sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm run build"
+    docker run --rm -v "$ROOT_DIR":/workspace node:22-alpine chown -R $(id -u):$(id -g) /workspace/admin-frontend-domain/dist
+else
+    echo "❌ 错误: 未找到 pnpm, npm 或 docker"
+    exit 1
+fi
 echo "✅ 管理员前端编译完毕！"
 
 
@@ -52,9 +64,16 @@ fi
 if command -v pnpm &> /dev/null; then
     pnpm install
     pnpm run build
-else
+elif command -v npm &> /dev/null; then
     npm install --legacy-peer-deps
     npm run build
+elif command -v docker &> /dev/null; then
+    echo "Using docker to build nezha-dash-v1..."
+    docker run --rm -v "$ROOT_DIR":/workspace -w /workspace/nezha-dash-v1 node:22-alpine sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm run build"
+    docker run --rm -v "$ROOT_DIR":/workspace node:22-alpine chown -R $(id -u):$(id -g) /workspace/nezha-dash-v1/dist
+else
+    echo "❌ 错误: 未找到 pnpm, npm 或 docker"
+    exit 1
 fi
 echo "✅ 用户前端编译完毕！"
 
@@ -81,14 +100,18 @@ else
     echo "❌ 错误: 用户前端打包产物目录 $USER_DIR/dist 不存在"
     exit 1
 fi
+touch "$ADMIN_DIST_TARGET/.gitkeep"
+touch "$USER_DIST_TARGET/.gitkeep"
 echo "✅ 前端产物拷贝完毕！"
 
 echo "--------------------------------------"
 echo "[5/5] 🏗 正在编译后端服务 (nezha_domains)..."
 cd "$BACKEND_DIR"
 
+export PATH="$PATH:/usr/local/go/bin:$(go env GOPATH 2>/dev/null || echo /home/buri/go)/bin"
+
 echo "正在生成 Swagger 接口文档..."
-go install github.com/swaggo/swag/cmd/swag@latest
+go install github.com/swaggo/swag/cmd/swag@v1.16.6 2>/dev/null || go install github.com/swaggo/swag/cmd/swag@latest
 $(go env GOPATH)/bin/swag init --pd -d . -g ./cmd/dashboard/main.go -o ./cmd/dashboard/docs --parseGoList=false
 
 # 修正构建路径：用户给的命令是在根目录编 '.' 但实际 main.go 存在于 cmd/dashboard
