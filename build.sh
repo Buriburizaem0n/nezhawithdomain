@@ -114,10 +114,10 @@ echo "正在生成 Swagger 接口文档..."
 go install github.com/swaggo/swag/cmd/swag@v1.16.6 2>/dev/null || go install github.com/swaggo/swag/cmd/swag@latest
 $(go env GOPATH)/bin/swag init --pd -d . -g ./cmd/dashboard/main.go -o ./cmd/dashboard/docs --parseGoList=false
 
-# 修正构建路径：用户给的命令是在根目录编 '.' 但实际 main.go 存在于 cmd/dashboard
-echo "正在执行 Go 构建..."
-go build -o ../nezha-server ./cmd/dashboard
-echo "✅ 后端编译完毕！当前目录下生成了 nezha-server 可执行文件。"
+# 静态编译：CGO_ENABLED=0 保证纯静态链接，适配任何 Linux 发行版及 glibc/musl 环境
+echo "正在执行 Go 构建 (静态链接 CGO_ENABLED=0)..."
+CGO_ENABLED=0 go build -ldflags="-s -w" -o ../nezha-server ./cmd/dashboard
+echo "✅ 后端编译完毕！当前目录下生成了 nezha-server 静态可执行文件。"
 
 echo "======================================"
 echo "🎉 全流程构建完成！"
